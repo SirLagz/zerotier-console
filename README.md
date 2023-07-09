@@ -22,3 +22,6 @@ ZeroTier Console settings
 
 More information and screenshots can be found on my blog
 https://sirlagz.net/2023/07/09/zerotier-console-initial-release/
+
+# Usage
+download the ztconsole.sh file, make it executable, and run it with ./ztconsole.sh - as easy as that!
