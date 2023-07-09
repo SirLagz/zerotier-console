@@ -1,5 +1,6 @@
 #!/bin/bash
 REMOTEONLY=0
+NONC=0
 
 if [[ ! $(whoami) == "root" ]]; then
     echo "This program requires root access. Please login as root or run with sudo"
@@ -22,6 +23,7 @@ if [[ ! $(command -v whiptail) ]]; then
 fi
 
 if [[ ! $(command -v nc) ]]; then
+    NONC=1
     whiptail --title "ZeroTier Console" --msgbox "nc not found. Controller and Token status will be inaccurate" 30 80
 fi
 
@@ -118,7 +120,7 @@ function menuMain() {
     elif [[ ! ${#TOKEN} -eq 24 ]]; then
         CONTTOKENSTATUS="*** INVALID TOKEN ***"
     else
-        if [[ $CONTSTATUS == "Controller Reachable" ]]; then
+        if [[ $CONTSTATUS == "Controller Reachable" ]] || [[ $NONC -eq 1 ]]; then
             tokenTestConnect=$(curl -w "%{http_code}" -s "http://$CONTROLLERIP:$CONTROLLERPORT/status" -H "X-ZT1-AUTH: ${TOKEN}")
             http_code="${tokenTestConnect:${#tokenTestConnect}-3}"
             if [[ $http_code -eq "200" ]]; then
@@ -140,7 +142,7 @@ function menuMain() {
         menuItems=(Controller "Information and Configuration"
 Settings "ZeroTier Console Settings"
 )
-    elif [[ ! $CONTTOKENSTATUS == "Token OK" ]]; then
+    elif [[ ! $CONTTOKENSTATUS == "Token OK" ]] && [[ $NONC -eq 0 ]]; then
        menuItems=("Client" "Information and Configuration"
 Settings "ZeroTier Console Settings"
 )
