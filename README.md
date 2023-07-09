@@ -4,6 +4,7 @@ CLI utility for managing ZeroTier self-hosted controllers and a frontend for zer
 Zerotier-cli client frontend
  - View node info
 - Join and Leave networks from Zerotier Console
+
 Zerotier self-hosted controller management
 - Shows controller information
 - Create networks
@@ -15,6 +16,7 @@ Zerotier self-hosted controller management
 - Auth/Deauth Members
 - Show Member Information
 - Update Member IP addresses
+  
 ZeroTier Console settings
 - Set remote controller ip, port, and token
 
