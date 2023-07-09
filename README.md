@@ -24,4 +24,4 @@ More information and screenshots can be found on my blog
 https://sirlagz.net/2023/07/09/zerotier-console-initial-release/
 
 # Usage
-download the ztconsole.sh file, make it executable, and run it with ./ztconsole.sh - as easy as that!
+download the ztconsole.sh file from the releases - https://github.com/SirLagz/zerotier-console/releases/, make it executable, and run it with ./ztconsole.sh - as easy as that!
