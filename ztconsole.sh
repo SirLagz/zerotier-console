@@ -586,7 +586,7 @@ function networkMembers() {
         esac
         miMembers+=(" ($MEMSTATUS) ")
     done
-    menuMembers=$(whiptail --title "$TITLE" --menu "Zerotier Network $NWID Member List" $WTH $WTW 8 --cancel-button Back --ok-button Select "${miMembers[@]}" 3>&1 1>&2 2>&3)
+    menuMembers=$(whiptail --title "$TITLE" --menu "Zerotier Network $NWID Member List" $WTH $WTW $[ WTH - 8 ] --cancel-button Back --ok-button Select "${miMembers[@]}" 3>&1 1>&2 2>&3)
     if [[ $? -eq 1 ]]; then
         menuNetwork $NWID
     fi
