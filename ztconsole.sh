@@ -104,7 +104,7 @@ function getConfig() {
        fi
 
        CONTROLLERTOKEN=$(echo $jsonCurrentConf | jq -r .Token)
-       if [ -e $(echo "$CONTROLLERTOKEN" | grep -P '^[a-z0-9]{24}$' - <<< "$CONTROLLERTOKEN") ]; then
+       if [ -e $(echo "$CONTROLLERTOKEN" | grep -P '^[a-z0-9]{24}$') ]; then
            wtMsgBox "Invalid Token configured.  Please check token."
        fi
    fi
