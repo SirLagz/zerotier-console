@@ -1,4 +1,5 @@
-#!/bin/bash
+#!/bin/bash -i
+ZTCVERSION="ZeroTier Console v0.01.1"
 REMOTEONLY=0
 NONC=0
 
@@ -32,16 +33,23 @@ if [[ ! $(command -v zerotier-cli) ]]; then
     REMOTEONLY=1
 fi
 
+if [ -n "$COLUMNS" ] && [[ COLUMNS -gt 48 ]] ; then
+        WTW=$((COLUMNS-8))
+else
+        WTW=80
+fi
 
+if [ -n "$LINES" ] && [[ LINES -gt 38 ]]; then
+        WTH=$((LINES-8))
+else
+        WTH=30
+fi
 
 TOKEN=""
 NODEINFO=""
 NODEADDRESS=""
-TITLE="ZeroTier Console v0.01"
+TITLE="$ZTCVERSION"
 MEMSTATUS=""
-WTW=80
-WTH=30
-
 CONFFILE="ztconsole.json"
 TOKENPATH="/var/lib/zerotier-one/"
 TOKENFILE="authtoken.secret"
@@ -84,9 +92,21 @@ function curlGetHTTPOut() {
 function getConfig() {
    if [[ -f "$CONFFILE" ]]; then
        jsonCurrentConf=$(jq -r . $CONFFILE)
+
        CONTROLLERIP=$(echo $jsonCurrentConf | jq -r .Controller)
+       if [ -e $(echo "$CONTROLLERIP" | grep -i -P '^(0{0,2}(25[0-5]|(2[0-4]|1\d|[1-9]|)\d)(\.(?!$)|$)){4}$|^([a-z0-9]([-a-z0-9\.]*[a-z0-9])?)$') ]; then
+           wtMsgBox "Invalid IP address confgured. Please check IP address."
+       fi
+
        CONTROLLERPORT=$(echo $jsonCurrentConf | jq -r .Port)
+       if [[ CONTROLLERPORT -lt 1 ]] || [[ CONTROLLERPORT -gt 65535 ]]; then
+           wtMsgBox "Invalid Port configured.  Please check port."
+       fi
+
        CONTROLLERTOKEN=$(echo $jsonCurrentConf | jq -r .Token)
+       if [ -e $(echo "$CONTROLLERTOKEN" | grep -P '^[a-z0-9]{24}$') ]; then
+           wtMsgBox "Invalid Token configured.  Please check token."
+       fi
    fi
 }
 
@@ -97,7 +117,7 @@ function getAuth() {
             TOKEN=$(cat $TOKENPATH$TOKENFILE)
             NODEINFO=$(curl -s "http://$CONTROLLERIP:$CONTROLLERPORT/status" -H "X-ZT1-AUTH: ${TOKEN}")
             NODEADDRESS=$(echo $NODEINFO | jq -r .address)
-            TITLE="ZeroTier Console v0.01 : $NODEADDRESS"
+            TITLE="$ZTCVERSION : $NODEADDRESS"
         else
             wtMsgBox "Token not found. Please check token path and filename or set one in ZeroTier Console settings"
             exit
@@ -127,7 +147,7 @@ function menuMain() {
                 CONTTOKENSTATUS="Token OK"
                 jsonBody="${tokenTestConnect:0:${#tokenTestConnect}-3}"
                 NODEADDRESS=$(echo $jsonBody | jq -r .address)
-                TITLE="ZeroTier Console v0.01 : $NODEADDRESS"
+                TITLE="$ZTCVERSION : $NODEADDRESS"
             elif [[ $http_code -eq "000" ]]; then
                 CONTTOKENSTATUS="*** COMMUNICATION PROBLEM ***"
             else
@@ -185,7 +205,7 @@ Token Status: $CONTTOKENSTATUS"
 }
 
 function createZTCConf() {
-    echo '{"Controller":"","Port":"","Token":""}' | jq -c > "$CONFFILE"
+    echo '{"Controller":"'"$CONTROLLERIP"'","Port":"'"$CONTROLLERPORT"'","Token":"'"$CONTROLLERTOKEN"'"}' | jq -c > "$CONFFILE"
     chmod 600 "$CONFFILE"
 }
 
@@ -725,7 +745,7 @@ function networkConfigRouteAdd() {
             if [[ $? -eq 0 ]]; then
                 jsonCurrentRoute=$(curl -s "http://$CONTROLLERIP:$CONTROLLERPORT/controller/network/${NWID}/" -H "X-ZT1-AUTH: ${TOKEN}" | jq -c .routes)
                 jsonNewRoute=$(jq -c -n --arg net "$txtNewRoute" --arg gw "$txtNewRouteGW" '[{target:$net,via:$gw}]')
-		jsonPayload=$(echo $jsonCurrentRoute $jsonNewRoute | jq -s add -c | jq '{"routes": .}')
+                jsonPayload=$(echo $jsonCurrentRoute $jsonNewRoute | jq -s add -c | jq '{"routes": .}')
                 jsonAddNewRoute=$(curl -s -d "$jsonPayload" -X POST "http://$CONTROLLERIP:$CONTROLLERPORT/controller/network/${NWID}/" -H "X-ZT1-AUTH: ${TOKEN}" | jq .routes)
                 wtInfoMsgBox "Added New Route\nCurrent Routes: $jsonAddNewRoute"
                 networkConfigRoutes $NWID
