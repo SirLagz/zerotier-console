@@ -589,6 +589,7 @@ function networkMembers() {
         MEMCOUNT=$[ MEMCOUNT + 1 ]
         echo -ne "\rProcessed $MEMCOUNT members..."
     done
+    echo -ne "\r"
     menuMembers=$(whiptail --title "$TITLE" --menu "Zerotier Network $NWID Member List" $WTH $WTW $[ WTH - 8 ] --cancel-button Back --ok-button Select "${miMembers[@]}" 3>&1 1>&2 2>&3)
     if [[ $? -eq 1 ]]; then
         menuNetwork $NWID
