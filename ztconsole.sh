@@ -3,14 +3,14 @@ ZTCVERSION="ZeroTier Console v0.01.1"
 REMOTEONLY=0
 NONC=0
 
-if [ -n "$COLUMNS" ] && [[ COLUMNS -gt 48 ]] ; then
-        WTW=$((COLUMNS-8))
+if [ -n "$COLUMNS" ] && [[ $COLUMNS -gt 48 ]] ; then
+        WTW=$(($COLUMNS-8))
 else
         WTW=80
 fi
 
-if [ -n "$LINES" ] && [[ LINES -gt 38 ]]; then
-        WTH=$((LINES-8))
+if [ -n "$LINES" ] && [[ $LINES -gt 38 ]]; then
+        WTH=$(($LINES-8))
 elif [ $LINES -lt 30 ]; then
     WTH=$LINES
 else
@@ -90,6 +90,17 @@ function curlGetHTTPOut() {
     curlOut=$1
     out="${curlOut:0:${#curlOut}-3}"
     echo $out
+}
+
+function curlDeleteRequest() {
+    URL=$1
+    curlOutput=$(curl -s -X DELETE "$1" -H "X-ZT1-AUTH: ${TOKEN}")
+    httpCode=$(curlGetHTTPCode $curlOutput)
+    httpOut=$(curlGetHTTPOut $curlOutput)
+    arrReturn[0]=$httpCode
+    arrReturn[1]=$httpOut
+    arrReturn[2]=$curlOutput
+    echo $arrReturn
 }
 
 function curlPostRequest() {
