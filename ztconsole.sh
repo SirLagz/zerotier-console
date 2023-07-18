@@ -3,36 +3,6 @@ ZTCVERSION="ZeroTier Console v0.01.1"
 REMOTEONLY=0
 NONC=0
 
-if [[ ! $(whoami) == "root" ]]; then
-    echo "This program requires root access. Please login as root or run with sudo"
-    exit
-fi
-
-if [[ ! $(command -v jq) ]]; then
-    echo "jq not found. Please install jq before running this program"
-    exit
-fi
-
-if [[ ! $(command -v curl) ]]; then
-    echo "curl not found. Please install curl before running this program"
-    exit
-fi
-
-if [[ ! $(command -v whiptail) ]]; then
-    echo "whiptail not found. Please install whiptail before running this program"
-    exit
-fi
-
-if [[ ! $(command -v nc) ]]; then
-    NONC=1
-    whiptail --title "ZeroTier Console" --msgbox "nc not found. Controller and Token status will be inaccurate" 30 80
-fi
-
-if [[ ! $(command -v zerotier-cli) ]]; then
-    whiptail --title "ZeroTier Console" --msgbox "zerotier-cli not found. Local Zerotier Options unavailable." 30 80
-    REMOTEONLY=1
-fi
-
 if [ -n "$COLUMNS" ] && [[ COLUMNS -gt 48 ]] ; then
         WTW=$((COLUMNS-8))
 else
@@ -58,6 +28,36 @@ CONTROLLERIP="localhost"
 CONTROLLERPORT="9993"
 CONTROLLERTOKEN=""
 CONTSTATUS=""
+
+if [[ ! $(command -v jq) ]]; then
+    echo "jq not found. Please install jq before running this program"
+    exit
+fi
+
+if [[ ! $(command -v curl) ]]; then
+    echo "curl not found. Please install curl before running this program"
+    exit
+fi
+
+if [[ ! $(command -v whiptail) ]]; then
+    echo "whiptail not found. Please install whiptail before running this program"
+    exit
+fi
+
+if [[ ! $(whoami) == "root" ]]; then
+    whiptail --title "$TITLE" --msgbox "This program requires root access for local controller functions.\nPlease login as root or run with sudo if local controller access is required" $WTH $WTW
+    REMOTEONLY=1
+fi
+
+if [[ ! $(command -v nc) ]]; then
+    NONC=1
+    whiptail --title "ZeroTier Console" --msgbox "nc not found. Controller and Token status will be inaccurate" 30 80
+fi
+
+if [[ ! $(command -v zerotier-cli) ]]; then
+    whiptail --title "ZeroTier Console" --msgbox "zerotier-cli not found. Local Zerotier Options unavailable." 30 80
+    REMOTEONLY=1
+fi
 
 function wtMsgBox() {
     whiptail --title "$TITLE" --msgbox "$1" $WTH $WTW
@@ -120,7 +120,7 @@ function getAuth() {
             TITLE="$ZTCVERSION : $NODEADDRESS"
         else
             wtMsgBox "Token not found. Please check token path and filename or set one in ZeroTier Console settings"
-            exit
+            REMOTEONLY=1
         fi
     else
         TOKEN=$CONTROLLERTOKEN
@@ -129,17 +129,19 @@ function getAuth() {
 
 function menuMain() {
 
-    echo yes | nc -w 1 $CONTROLLERIP $CONTROLLERPORT
-    if [[ $? -eq 0 ]]; then
-        CONTSTATUS="Controller Reachable"
-    else
-        CONTSTATUS="*** CONTROLLER UNREACHABLE ***"
-    fi
     if [[ ${#TOKEN} -eq 0 ]]; then
         CONTTOKENSTATUS="*** EMPTY TOKEN ***"
     elif [[ ! ${#TOKEN} -eq 24 ]]; then
         CONTTOKENSTATUS="*** INVALID TOKEN ***"
     else
+        echo yes | nc -w 1 $CONTROLLERIP $CONTROLLERPORT
+        if [[ $? -eq 0 ]]; then
+            CONTSTATUS="Controller Reachable"
+        else
+            CONTSTATUS="*** CONTROLLER UNREACHABLE ***"
+        fi
+
+
         if [[ $CONTSTATUS == "Controller Reachable" ]] || [[ $NONC -eq 1 ]]; then
             tokenTestConnect=$(curl -w "%{http_code}" -s "http://$CONTROLLERIP:$CONTROLLERPORT/status" -H "X-ZT1-AUTH: ${TOKEN}")
             http_code="${tokenTestConnect:${#tokenTestConnect}-3}"
@@ -283,6 +285,7 @@ function menuZTCSettings() {
 
 function menuController() {
     menuItems=(Info "Show Controller Info"
+Auth "Show Auth Token"
 Networks "View and configure networks")
     menuText="ZeroTier Controller Console"
     menuControllerSelect=$(whiptail --title "$TITLE" --menu "$menuText" $WTH $WTW 4 --cancel-button Back --ok-button Select "${menuItems[@]}"  3>&1 1>&2 2>&3)
@@ -295,10 +298,18 @@ Networks "View and configure networks")
         Info)
             infoController
         ;;
+        Auth)
+            infoToken
+        ;;
         Networks)
             menuNetworks
         ;;
     esac
+}
+
+function infoToken() {
+    wtMsgBox "$TOKEN"
+    menuController
 }
 
 function infoController() {
