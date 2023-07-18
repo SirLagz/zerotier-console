@@ -11,6 +11,8 @@ fi
 
 if [ -n "$LINES" ] && [[ LINES -gt 38 ]]; then
         WTH=$((LINES-8))
+elif [ $LINES -lt 30 ]; then
+    WTH=$LINES
 else
         WTH=30
 fi
@@ -51,11 +53,11 @@ fi
 
 if [[ ! $(command -v nc) ]]; then
     NONC=1
-    whiptail --title "ZeroTier Console" --msgbox "nc not found. Controller and Token status will be inaccurate" 30 80
+    whiptail --title "ZeroTier Console" --msgbox "nc not found. Controller and Token status will be inaccurate" $WTH $WTW
 fi
 
 if [[ ! $(command -v zerotier-cli) ]]; then
-    whiptail --title "ZeroTier Console" --msgbox "zerotier-cli not found. Local Zerotier Options unavailable." 30 80
+    whiptail --title "ZeroTier Console" --msgbox "zerotier-cli not found. Local Zerotier Options unavailable." $WTH $WTW
     REMOTEONLY=1
 fi
 
@@ -87,6 +89,12 @@ function curlGetHTTPOut() {
     curlOut=$1
     out="${curlOut:0:${#curlOut}-3}"
     echo $out
+}
+
+function checkOnline() {
+    IP=$1
+    ping -c 1 -W 1 $IP
+    return $?
 }
 
 function getConfig() {
@@ -286,6 +294,7 @@ function menuZTCSettings() {
 function menuController() {
     menuItems=(Info "Show Controller Info"
 Auth "Show Auth Token"
+Settings "Change controller settings"
 Networks "View and configure networks")
     menuText="ZeroTier Controller Console"
     menuControllerSelect=$(whiptail --title "$TITLE" --menu "$menuText" $WTH $WTW 4 --cancel-button Back --ok-button Select "${menuItems[@]}"  3>&1 1>&2 2>&3)
@@ -300,6 +309,9 @@ Networks "View and configure networks")
         ;;
         Auth)
             infoToken
+        ;;
+        Settings)
+            menuControllerSettings
         ;;
         Networks)
             menuNetworks
@@ -321,6 +333,7 @@ function infoController() {
 function menuThisNode() {
 menuItems=(Info "About This Node"
 Join "this node to a network"
+Change "settings for a network"
 Leave "a network this node is connected to"
 )
 
@@ -336,6 +349,9 @@ Leave "a network this node is connected to"
         ;;
         Join)
             cmenuJoinNetwork
+        ;;
+        Change)
+            cmenuNetworkSettings
         ;;
         Leave)
             cmenuLeaveNetwork
@@ -570,7 +586,7 @@ function networkInfo() {
     menuNetwork $NWID
 }
 
-function networkMembers() {
+function menuNetworkMembers() {
     NWID=$1
     jsonNetworkMembers=$(curl -s "http://$CONTROLLERIP:$CONTROLLERPORT/controller/network/${NWID}/member" -H "X-ZT1-AUTH: ${TOKEN}")
     arrMembers=($(echo $jsonNetworkMembers | jq -r 'keys[]'))
@@ -587,9 +603,14 @@ function networkMembers() {
         jsonNetworkMemberStatus=$(curl -s "http://$CONTROLLERIP:$CONTROLLERPORT/controller/network/${NWID}/member/${i}" -H "X-ZT1-AUTH: ${TOKEN}")
         memAuthStatus=$(echo $jsonNetworkMemberStatus | jq .authorized)
         memIPAddress=$(echo $jsonNetworkMemberStatus | jq -r .ipAssignments[0])
+        memStatus="Offline"
+        if [[ checkOnline $memIPAddress ]]; then
+            memStatus="Online"
+        fi
+        ## TODO progress bar for pings
         case $memAuthStatus in
             "true")
-                MEMSTATUS="Authorised [$memIPAddress]"
+                MEMSTATUS="Authorised [$memIPAddress ($memStatus)]"
             ;;
             "false")
                 MEMSTATUS="Not-Authorised"
@@ -658,7 +679,7 @@ function memberDelete() {
         if [[ $resp == "200" ]]; then
             wtMsgBox "Successfully deleted $MID"
             #wtMsgBox "$jsonDeleteMember"
-            networkMembers $NWID
+            menuNetworkMembers $NWID
             exit
         else
             wtMsgBox "Unable to delete member $MID"
@@ -918,7 +939,7 @@ function menuNetwork() {
             networkConfig $idNetwork
         ;;
         "List Network Members")
-            networkMembers $idNetwork
+            menuNetworkMembers $idNetwork
         ;;
         "Delete Network")
             networkDelete $idNetwork
