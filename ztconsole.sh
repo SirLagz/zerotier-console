@@ -1,5 +1,5 @@
 #!/bin/bash -i
-ZTCVERSION="ZeroTier Console v0.01.1"
+ZTCVERSION="ZeroTier Console v0.02"
 REMOTEONLY=0
 NONC=0
 
