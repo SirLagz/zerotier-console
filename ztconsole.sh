@@ -20,6 +20,7 @@ fi
 TOKEN=""
 NODEINFO=""
 NODEADDRESS=""
+
 TITLE="$ZTCVERSION"
 MEMSTATUS=""
 CONFFILE="ztconsole.json"
@@ -78,6 +79,32 @@ function wtTextInput() {
 function wtConfirm() {
     whiptail --title "$TITLE" --yesno "$1" $WTH $WTW
     return $?
+}
+
+function wtMenu() {
+    menuText=$1
+    menuItems=$2
+    menuSelectButtonText="Select"
+    menuHeight=4
+    if [[ $3 ]]; then
+        menuHeight=$3
+    fi
+    if [[ $4 ]]; then
+        menuSelectButtonText=$4
+    fi
+    menuFtnSelect=$(whiptail --title "$TITLE" --menu "$menuText" $WTH $WTW $menuHeight --cancel-button Exit --ok-button $menuSelectButtonText "${menuItems[@]}" 3>&1 1>&2 2>&3)
+    menuReturn=$?
+    arrFtnReturn[0]=$menuFtnSelect
+    arrFtnReturn[1]=$menuFtnSelect
+    arrFtnReturn[2]="s"
+#    echo ${arrFtnReturn[0]}
+ #   echo ${arrFtnReturn[1]}
+    if [[ $menuReturn -ne 0 ]]; then
+        echo $arrFtnReturn
+    else
+        echo $arrFtnReturn
+    fi
+    return $menuReturn
 }
 
 function curlGetHTTPCode() {
@@ -231,11 +258,18 @@ Controller Port: $CONTROLLERPORT
 Controller Connection Status: $CONTSTATUS
 Token Status: $CONTTOKENSTATUS"
 
-    menuMainSelect=$(whiptail --title "$TITLE" --menu "$menuText" $WTH $WTW 4 --cancel-button Exit --ok-button Select "${menuItems[@]}" 3>&1 1>&2 2>&3)
-    if [[ $? -eq 1 ]]; then
+    #menuMainSelect=$(whiptail --title "$TITLE" --menu "$menuText" $WTH $WTW 4 --cancel-button Exit --ok-button Select "${menuItems[@]}" 3>&1 1>&2 2>&3)
+    #if [[ $? -eq 1 ]]; then
+    #    exit
+    #fi
+    menu1MainSelect=$(wtMenu "$menuText" "$menuItems")
+    menu1return=$?
+    #echo "zero $menu1MainSelect"
+    #echo "two $menu1return"
+    if [[ $menu1return -ne 0 ]]; then
         exit
     fi
-    case $menuMainSelect in
+    case $menu1MainSelect in
         Client)
             menuThisNode
         ;;
@@ -360,13 +394,19 @@ Networks "View and configure networks")
     esac
 }
 
+function menuControllerSettings() {
+    menuItems=("Remote Management" "Remote Management Settings"
+    )
+    
+    menuController
+}
+
 function infoToken() {
     wtMsgBox "$TOKEN"
     menuController
 }
 
 function infoController() {
-    #jsonControllerInfo=$(curl -s "http://$CONTROLLERIP:$CONTROLLERPORT/controller" -H "X-ZT1-AUTH: ${TOKEN}")
     arrCurl=$(curlRequest "http://$CONTROLLERIP:$CONTROLLERPORT/controller")
     if [[ ${arrCurl[0]} -eq 0 ]]; then
         wtMsgBox "Error connecting to controller"
