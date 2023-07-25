@@ -695,6 +695,7 @@ function menuNetworkMembers() {
     fi
     miMembers=()
     MEMSTATUS="-"
+    MEMCOUNT=0
     for i in ${arrMembers[@]}; do
         miMembers+=("$i")
 
@@ -715,7 +716,10 @@ function menuNetworkMembers() {
             ;;
         esac
         miMembers+=(" ($MEMSTATUS) ")
+        MEMCOUNT=$[ MEMCOUNT + 1 ]
+        echo -ne "\rProcessed $MEMCOUNT members..."
     done
+    echo -ne "\r"
     menuMembers=$(whiptail --title "$TITLE" --menu "Zerotier Network $NWID Member List" $WTH $WTW $[ WTH - 8 ] --cancel-button Back --ok-button Select "${miMembers[@]}" 3>&1 1>&2 2>&3)
     if [[ $? -eq 1 ]]; then
         menuNetwork $NWID
@@ -1056,19 +1060,20 @@ function menuNetwork() {
 }
 
 function menuNetworks() {
-    menuItems=("Create Network" "" "List Networks" "")
+    menuItems=("List Networks" "" "Create Network" "")
     menuSelect=$(whiptail --title "$TITLE" --menu "ZeroTier Networking Menu" $WTH $WTW 4 --cancel-button Back --ok-button Select "${menuItems[@]}" 3>&1 1>&2 2>&3)
     RET=$?
     if [[ $RET -eq 1 ]]; then
         menuController
     fi
     case $menuSelect in
-        "Create Network")
-            networkCreate
-        ;;
         "List Networks")
             networkList
         ;;
+        "Create Network")
+            networkCreate
+        ;;
+
     esac
 }
 
