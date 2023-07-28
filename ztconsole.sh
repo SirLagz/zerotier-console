@@ -102,7 +102,7 @@ function getConfig() {
        jsonCurrentConf=$(jq -r . $CONFFILE)
 
        CONTROLLERIP=$(echo $jsonCurrentConf | jq -r .Controller)
-       if [ -e $(echo "$CONTROLLERIP" | grep -i -P '^(0{0,2}(25[0-5]|(2[0-4]|1\d|[1-9]|)\d)(\.(?!$)|$)){4}$|^([a-z0-9]([-a-z0-9\.]*[a-z0-9])?)$') ]; then
+       if ! ( validateIP "$CONTROLLERIP" ); then
            wtMsgBox "Invalid IP address confgured. Please check IP address."
        fi
 
@@ -227,6 +227,9 @@ function ZTCContIP() {
     jsonCurrentConf=$(jq -r . $CONFFILE)
     jsonCurrentIP=$(echo $jsonCurrentConf | jq -r .Controller)
     input=$(wtTextInput "Please enter controller IP or Hostname" $jsonCurrentIP)
+    if ! ( validateIP "$input" ); then
+        wtMsgBox "Invalid IP address confgured. Please check IP address."
+    fi
     jsonNewIP=$(echo $jsonCurrentConf | jq '. | .Controller |= "'"$input"'"')
     echo $jsonNewIP | jq -c > "$CONFFILE"
     CONTROLLERIP="$input"
@@ -317,6 +320,17 @@ Networks "View and configure networks")
             menuNetworks
         ;;
     esac
+}
+
+function menuControllerSettings() {
+    menuItems=("Remote Management" "Remote Management Settings"
+    )
+    menuController
+}
+
+function menuControllerSettings() {
+    menuItems=("Remote Management" "Remote Management Settings")
+    menuController
 }
 
 function infoToken() {
@@ -597,6 +611,7 @@ function menuNetworkMembers() {
     fi
     miMembers=()
     MEMSTATUS="-"
+    MEMCOUNT=0
     for i in ${arrMembers[@]}; do
         miMembers+=("$i")
 
@@ -604,7 +619,7 @@ function menuNetworkMembers() {
         memAuthStatus=$(echo $jsonNetworkMemberStatus | jq .authorized)
         memIPAddress=$(echo $jsonNetworkMemberStatus | jq -r .ipAssignments[0])
         memStatus="Offline"
-        if [[ checkOnline $memIPAddress ]]; then
+        if [[ $(checkOnline $memIPAddress) ]]; then
             memStatus="Online"
         fi
         ## TODO progress bar for pings
@@ -617,7 +632,10 @@ function menuNetworkMembers() {
             ;;
         esac
         miMembers+=(" ($MEMSTATUS) ")
+        MEMCOUNT=$[ MEMCOUNT + 1 ]
+        echo -ne "\rProcessed $MEMCOUNT members..."
     done
+    echo -ne "\r"
     menuMembers=$(whiptail --title "$TITLE" --menu "Zerotier Network $NWID Member List" $WTH $WTW $[ WTH - 8 ] --cancel-button Back --ok-button Select "${miMembers[@]}" 3>&1 1>&2 2>&3)
     if [[ $? -eq 1 ]]; then
         menuNetwork $NWID
@@ -949,24 +967,35 @@ function menuNetwork() {
 }
 
 function menuNetworks() {
-    menuItems=("Create Network" "" "List Networks" "")
+    menuItems=("List Networks" "" "Create Network" "")
     menuSelect=$(whiptail --title "$TITLE" --menu "ZeroTier Networking Menu" $WTH $WTW 4 --cancel-button Back --ok-button Select "${menuItems[@]}" 3>&1 1>&2 2>&3)
     RET=$?
     if [[ $RET -eq 1 ]]; then
         menuController
     fi
     case $menuSelect in
-        "Create Network")
-            networkCreate
-        ;;
         "List Networks")
             networkList
+        ;;
+        "Create Network")
+            networkCreate
         ;;
     esac
 }
 
 function menuClients() {
     echo "Clients Menu"
+}
+
+function validateIP() {
+    dnsRegex='^([a-z0-9][-a-z0-9]{0,61}[a-z0-9]\.)+[a-z]{2,}$'
+    ipv4Regex='^(0{0,2}(25[0-5]|(2[0-4]|1[0-9]|[1-9]|)[0-9])(\.(?!$)|$)){4}$'
+    ipv6Regex='(?!.*:::|(.*::){2})^([a-f0-9]{0,4}:){1,8}[a-f0-9]{0,4}(%[a-z0-9]+)?$'
+    ipRegex="($ipv4Regex)|($dnsRegex)|($ipv6Regex)"
+
+    grep -qiP $ipRegex <<< "$1"
+
+    return $?
 }
 
 getAuth
