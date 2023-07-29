@@ -605,17 +605,17 @@ function parseNetworkMember() {
     memberID=$2
     jsonNetworkMemberStatus=$(curl -s "http://$CONTROLLERIP:$CONTROLLERPORT/controller/network/${networkID}/member/${memberID}" -H "X-ZT1-AUTH: ${TOKEN}")
     memAuthStatus=$(echo $jsonNetworkMemberStatus | jq .authorized)
-    memIPAddress=$(echo $jsonNetworkMemberStatus | jq -r .ipAssignments[0])
     case $memAuthStatus in
         "true")
+            memIPAddress=$(echo $jsonNetworkMemberStatus | jq -r .ipAssignments[0])
             if [[ "$memIPAddress" == "null" ]]; then
                 echo "Authorised"
             else
                 ping -c 1 -W 1 "$memIPAddress" >> /dev/null
                 if [ $? -eq 0 ]; then
-                    echo "Authorised [$memIPAddress (OK)]"
+                    echo "[$memIPAddress]"
                 else
-                    echo "Authorised [$memIPAddress (DOWN)]"
+                    echo "[$memIPAddress] (DOWN)"
                 fi
             fi
         ;;
@@ -640,7 +640,7 @@ function menuNetworkMembers() {
     pids=()
 
     for i in ${arrMembers[@]}; do
-        echo -e "$i\t($(parseNetworkMember $NWID $i))" >> $tmpMembers &
+        echo -e "$i\t  $(parseNetworkMember $NWID $i)" >> $tmpMembers &
     done
     wait
 
