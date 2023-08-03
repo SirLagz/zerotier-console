@@ -164,7 +164,7 @@ function getConfig() {
        jsonCurrentConf=$(jq -r . $CONFFILE)
 
        CONTROLLERIP=$(echo $jsonCurrentConf | jq -r .Controller)
-       if [ -e $(echo "$CONTROLLERIP" | grep -i -P '^(0{0,2}(25[0-5]|(2[0-4]|1\d|[1-9]|)\d)(\.(?!$)|$)){4}$|^([a-z0-9]([-a-z0-9\.]*[a-z0-9])?)$') ]; then
+       if ! ( validateIP "$CONTROLLERIP" ); then
            wtMsgBox "Invalid IP address confgured. Please check IP address."
        fi
 
@@ -302,6 +302,9 @@ function ZTCContIP() {
     jsonCurrentConf=$(jq -r . $CONFFILE)
     jsonCurrentIP=$(echo $jsonCurrentConf | jq -r .Controller)
     input=$(wtTextInput "Please enter controller IP or Hostname" $jsonCurrentIP)
+    if ! ( validateIP "$input" ); then
+        wtMsgBox "Invalid IP address confgured. Please check IP address."
+    fi
     jsonNewIP=$(echo $jsonCurrentConf | jq '. | .Controller |= "'"$input"'"')
     echo $jsonNewIP | jq -c > "$CONFFILE"
     CONTROLLERIP="$input"
@@ -397,7 +400,6 @@ Networks "View and configure networks")
 function menuControllerSettings() {
     menuItems=("Remote Management" "Remote Management Settings"
     )
-    
     menuController
 }
 
@@ -684,6 +686,31 @@ function networkInfo() {
     menuNetwork $NWID
 }
 
+function parseNetworkMember() {
+    networkID=$1
+    memberID=$2
+    jsonNetworkMemberStatus=$(curl -s "http://$CONTROLLERIP:$CONTROLLERPORT/controller/network/${networkID}/member/${memberID}" -H "X-ZT1-AUTH: ${TOKEN}")
+    memAuthStatus=$(echo $jsonNetworkMemberStatus | jq .authorized)
+    case $memAuthStatus in
+        "true")
+            memIPAddress=$(echo $jsonNetworkMemberStatus | jq -r .ipAssignments[0])
+            if [[ "$memIPAddress" == "null" ]]; then
+                echo "Authorised"
+            else
+                ping -c 1 -W 1 "$memIPAddress" >> /dev/null
+                if [ $? -eq 0 ]; then
+                    echo "[$memIPAddress]"
+                else
+                    echo "[$memIPAddress] (DOWN)"
+                fi
+            fi
+        ;;
+        "false")
+            echo "Not Authorised"
+        ;;
+    esac
+}
+
 function menuNetworkMembers() {
     NWID=$1
     jsonNetworkMembers=$(curl -s "http://$CONTROLLERIP:$CONTROLLERPORT/controller/network/${NWID}/member" -H "X-ZT1-AUTH: ${TOKEN}")
@@ -693,33 +720,20 @@ function menuNetworkMembers() {
         menuNetwork $NWID
         exit
     fi
-    miMembers=()
-    MEMSTATUS="-"
-    MEMCOUNT=0
-    for i in ${arrMembers[@]}; do
-        miMembers+=("$i")
 
-        jsonNetworkMemberStatus=$(curl -s "http://$CONTROLLERIP:$CONTROLLERPORT/controller/network/${NWID}/member/${i}" -H "X-ZT1-AUTH: ${TOKEN}")
-        memAuthStatus=$(echo $jsonNetworkMemberStatus | jq .authorized)
-        memIPAddress=$(echo $jsonNetworkMemberStatus | jq -r .ipAssignments[0])
-        memStatus="Offline"
-        if [[ $(checkOnline $memIPAddress) ]]; then
-            memStatus="Online"
-        fi
-        ## TODO progress bar for pings
-        case $memAuthStatus in
-            "true")
-                MEMSTATUS="Authorised [$memIPAddress ($memStatus)]"
-            ;;
-            "false")
-                MEMSTATUS="Not-Authorised"
-            ;;
-        esac
-        miMembers+=(" ($MEMSTATUS) ")
-        MEMCOUNT=$[ MEMCOUNT + 1 ]
-        echo -ne "\rProcessed $MEMCOUNT members..."
+
+    tmpMembers=$(mktemp)
+    trap "rm -f $tmpMembers" EXIT
+    pids=()
+
+    for i in ${arrMembers[@]}; do
+        echo -e "$i\t  $(parseNetworkMember $NWID $i)" >> $tmpMembers &
     done
-    echo -ne "\r"
+    wait
+
+    IFS=';' read -ra miMembers <<< $(sort $tmpMembers|tr '\n\t' ';')
+
+
     menuMembers=$(whiptail --title "$TITLE" --menu "Zerotier Network $NWID Member List" $WTH $WTW $[ WTH - 8 ] --cancel-button Back --ok-button Select "${miMembers[@]}" 3>&1 1>&2 2>&3)
     if [[ $? -eq 1 ]]; then
         menuNetwork $NWID
@@ -799,7 +813,7 @@ function memberMenu() {
     menuText=("Zerotier Network $NWID \nMember Menu - $MID \nMember Authorised - $MEMSTATUS")
     menuMember=$(whiptail --title "$TITLE" --menu "$menuText" $WTH $WTW 8 --cancel-button Back --ok-button Select "${menuItems[@]}" 3>&1 1>&2 2>&3)
     if [[ $? -eq 1 ]]; then
-        networkMembers $NWID
+        menuNetworkMembers $NWID
     fi
     case $menuMember in
         "Member Info")
@@ -1073,12 +1087,22 @@ function menuNetworks() {
         "Create Network")
             networkCreate
         ;;
-
     esac
 }
 
 function menuClients() {
     echo "Clients Menu"
+}
+
+function validateIP() {
+    dnsRegex='^([a-z0-9][-a-z0-9]{0,61}[a-z0-9]\.)+[a-z]{2,}$'
+    ipv4Regex='^(0{0,2}(25[0-5]|(2[0-4]|1[0-9]|[1-9]|)[0-9])(\.(?!$)|$)){4}$'
+    ipv6Regex='(?!.*:::|(.*::){2})^([a-f0-9]{0,4}:){1,8}[a-f0-9]{0,4}(%[a-z0-9]+)?$'
+    ipRegex="($ipv4Regex)|($dnsRegex)|($ipv6Regex)"
+
+    grep -qiP $ipRegex <<< "$1"
+
+    return $?
 }
 
 getAuth
