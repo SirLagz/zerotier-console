@@ -97,8 +97,6 @@ function wtMenu() {
     arrFtnReturn[0]=$menuFtnSelect
     arrFtnReturn[1]=$menuFtnSelect
     arrFtnReturn[2]="s"
-#    echo ${arrFtnReturn[0]}
- #   echo ${arrFtnReturn[1]}
     if [[ $menuReturn -ne 0 ]]; then
         echo $arrFtnReturn
     else
@@ -120,37 +118,31 @@ function curlGetHTTPOut() {
 }
 
 function curlDeleteRequest() {
-    URL=$1
+    URL="$1"
     curlOutput=$(curl -s -X DELETE "$1" -H "X-ZT1-AUTH: ${TOKEN}")
-    httpCode=$(curlGetHTTPCode $curlOutput)
-    httpOut=$(curlGetHTTPOut $curlOutput)
-    arrReturn[0]=$httpCode
-    arrReturn[1]=$httpOut
-    arrReturn[2]=$curlOutput
-    echo $arrReturn
+    httpCode=$(curlGetHTTPCode "$curlOutput")
+    httpOut=$(curlGetHTTPOut "$curlOutput")
+    echo $httpOut
+    return "$httpCode"
 }
 
 function curlPostRequest() {
-    URL=$1
-    POSTDATA=$2
+    URL="$1"
+    POSTDATA="$2"
     curlOutput=$(curl -w "%{http_code}" -s -X POST "$URL" -H "X-ZT1-AUTH: ${TOKEN}" -d "$POSTDATA")
-    httpCode=$(curlGetHTTPCode $curlOutput)
-    httpOut=$(curlGetHTTPOut $curlOutput)
-    arrReturn[0]=$httpCode
-    arrReturn[1]=$httpOut
-    arrReturn[2]=$curlOutput
-    echo $arrReturn
+    httpCode=$(curlGetHTTPCode "$curlOutput")
+    httpOut=$(curlGetHTTPOut "$curlOutput")
+    echo "$httpOut"
+    return "$httpCode"
 }
 
 function curlRequest() {
-    URL=$1
+    URL="$1"
     curlOutput=$(curl -w "%{http_code}" -s "$URL" -H "X-ZT1-AUTH: ${TOKEN}")
-    httpCode=$(curlGetHTTPCode $curlOutput)
-    httpOut=$(curlGetHTTPOut $curlOutput)
-    arrReturn[0]=$httpCode
-    arrReturn[1]=$httpOut
-    arrReturn[2]=$curlOutput
-    echo $arrReturn
+    httpCode=$(curlGetHTTPCode "$curlOutput")
+    httpOut=$(curlGetHTTPOut "$curlOutput")
+    echo $httpOut
+    return "$httpCode"
 }
 
 function checkOnline() {
@@ -611,7 +603,8 @@ function networkCreate() {
     if [[ $? -eq 1 ]]; then
         #jsonNewNetwork=$(curl -s -X POST "http://$CONTROLLERIP:$CONTROLLERPORT/controller/network/${NODEADDRESS}______" -H "X-ZT1-AUTH: ${TOKEN}" -d {})
         curlOut=$(curlPostRequest "http://$CONTROLLERIP:$CONTROLLERPORT/controller/network/${NODEADDRESS}______" "{}")
-        if [[ ! ${curlOut[1]} == '{}' ]] && [[ ${curlOut[0]} -eq 200 ]]; then 
+        curlCode=$?
+        if [[ ! "$curlOut" == '{}' ]] && [[ "$curlCode" -eq 200 ]]; then 
             NWID=$(echo ${curlOut[1]} | jq -r .id)
             wtMsgBox "Network $NWID created"
             menuNetworks
@@ -646,8 +639,9 @@ function networkCreate() {
         wtConfirm "Are these settings correct? $jsonPayload"
         if [[ $? ]]; then
             curlOut=$(curlPostRequest "http://$CONTROLLERIP:$CONTROLLERPORT/controller/network/${NODEADDRESS}______" "$jsonPayload")
-            if [[ ${curlOut[0]} -eq 200 ]]; then
-                wtMsgBox "${curlOut[1]}"
+            curlCode=$?
+            if [[ $curlCode -eq 200 ]]; then
+                wtMsgBox "$curlOut"
             else
                 wtMsgBox "Unable to create network"
             fi
@@ -841,8 +835,9 @@ function networkList() {
 
     #jsonNetworkList=$(curl -s "http://$CONTROLLERIP:$CONTROLLERPORT/controller/network/" -H "X-ZT1-AUTH: ${TOKEN}" )
     jsonNetworkList=$(curlRequest "http://$CONTROLLERIP:$CONTROLLERPORT/controller/network/")
-    if [[ ${jsonNetworkList[0]} -eq 200 ]]; then
-        Networks=($(echo ${jsonNetworkList[1]} | jq -r '.[]'))
+    curlCode=$?
+    if [[ $curlCode -eq 200 ]]; then
+        Networks=($(echo $jsonNetworkList | jq -r '.[]'))
         if [[ ${#Networks} -eq 0 ]]; then
             wtMsgBox "No networks found. Please create a network"
             menuNetworks
