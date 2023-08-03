@@ -63,6 +63,10 @@ if [[ ! $(command -v zerotier-cli) ]]; then
     REMOTEONLY=1
 fi
 
+if [[ ! $(command -v iptables-save) ]]; then
+    whiptail --title "$TITLE" --msgbox "iptables-save not found. Any iptables changes will not be persisted" $WTH $WTW
+fi
+
 function wtMsgBox() {
     whiptail --title "$TITLE" --msgbox "$1" $WTH $WTW
 }
@@ -226,6 +230,42 @@ function checkConnectivity() {
     fi
 }
 
+function menuNode() {
+    menuText="Local Node Settings"
+    menuItems=("Wizards" "Quick Setup Wizards")
+    menuNodeSelect=$(wtMenu "$menuText" "$menuItems")
+    case $menuNodeSelect in
+        "Wizards")
+            menuWizards
+        ;;
+        *)
+            menuMain
+        ;;
+    esac
+    exit
+}
+
+function menuWizards() {
+    menuText="Quick Setups"
+    menuItems=("Router Mode" "Enable IP Forwarding")
+    menuWizardSelect=$(wtMenu "$menuText" "$menuItems")
+    case $menuWizardSelect in
+        "Router Mode")
+            setRouterMode
+        ;;
+        *)
+            menuNode
+        ;;
+    esac
+    exit
+}
+
+function setRouterMode() {
+    sysctl -w net.ipv4.ip_forward=1 && sysctl -p
+    wtMsgBox "Ran the commands sysctl -w net.ipv4.ip_forward=1 &&  sysctl -p. IP Forwarding is now enabled."
+    menuWizards
+}
+
 function menuMain() {
     checkConnectivity
 
@@ -240,6 +280,7 @@ Settings "ZeroTier Console Settings"
     else
         menuItems=("Client" "Information and Configuration"
 Controller "Information and Configuration"
+Node "Information and Configuration"
 Settings "ZeroTier Console Settings"
 )
     fi
@@ -250,14 +291,8 @@ Controller Port: $CONTROLLERPORT
 Controller Connection Status: $CONTSTATUS
 Token Status: $CONTTOKENSTATUS"
 
-    #menuMainSelect=$(whiptail --title "$TITLE" --menu "$menuText" $WTH $WTW 4 --cancel-button Exit --ok-button Select "${menuItems[@]}" 3>&1 1>&2 2>&3)
-    #if [[ $? -eq 1 ]]; then
-    #    exit
-    #fi
     menu1MainSelect=$(wtMenu "$menuText" "$menuItems")
     menu1return=$?
-    #echo "zero $menu1MainSelect"
-    #echo "two $menu1return"
     if [[ $menu1return -ne 0 ]]; then
         exit
     fi
@@ -276,6 +311,9 @@ Token Status: $CONTTOKENSTATUS"
         ;;
         Clients)
             menuClients
+        ;;
+        Node)
+            menuNode
         ;;
     esac
     exit
@@ -392,6 +430,8 @@ Networks "View and configure networks")
 function menuControllerSettings() {
     menuItems=("Remote Management" "Remote Management Settings"
     )
+    menuText="ZeroTier Controller Settings"
+    menuSelect=$(wtMenu "$menuText" "$menuItems")
     menuController
 }
 
@@ -402,11 +442,12 @@ function infoToken() {
 
 function infoController() {
     arrCurl=$(curlRequest "http://$CONTROLLERIP:$CONTROLLERPORT/controller")
-    if [[ ${arrCurl[0]} -eq 0 ]]; then
+    curlCode=$?
+    if [[ $curlCode -eq 0 ]]; then
         wtMsgBox "Error connecting to controller"
         menuController
     else
-        wtInfoMsgBox "${arrCurl[1]}"
+        wtInfoMsgBox "$arrCurl"
         menuController
     fi
     exit
@@ -601,7 +642,6 @@ Surface Addresses:   -$NODESURFACEADDRESS
 function networkCreate() {
     whiptail --title "$TITLE" --yesno "Do you want to configure the network now?" $WTH $WTW
     if [[ $? -eq 1 ]]; then
-        #jsonNewNetwork=$(curl -s -X POST "http://$CONTROLLERIP:$CONTROLLERPORT/controller/network/${NODEADDRESS}______" -H "X-ZT1-AUTH: ${TOKEN}" -d {})
         curlOut=$(curlPostRequest "http://$CONTROLLERIP:$CONTROLLERPORT/controller/network/${NODEADDRESS}______" "{}")
         curlCode=$?
         if [[ ! "$curlOut" == '{}' ]] && [[ "$curlCode" -eq 200 ]]; then 
@@ -645,8 +685,6 @@ function networkCreate() {
             else
                 wtMsgBox "Unable to create network"
             fi
-            #jsonNewNetwork=$(curl -s -X POST "http://$CONTROLLERIP:$CONTROLLERPORT/controller/network/${NODEADDRESS}______" -H "X-ZT1-AUTH: ${TOKEN}" -d "$jsonPayload")
-            #wtMsgBox "$jsonNewNetwork"
             menuNetworks
             exit
         else
@@ -788,7 +826,6 @@ function memberDelete() {
         resp=$(curlGetHTTPCode $jsonDeleteMember)
         if [[ $resp == "200" ]]; then
             wtMsgBox "Successfully deleted $MID"
-            #wtMsgBox "$jsonDeleteMember"
             menuNetworkMembers $NWID
             exit
         else
@@ -832,8 +869,6 @@ function memberMenu() {
 }
 
 function networkList() {
-
-    #jsonNetworkList=$(curl -s "http://$CONTROLLERIP:$CONTROLLERPORT/controller/network/" -H "X-ZT1-AUTH: ${TOKEN}" )
     jsonNetworkList=$(curlRequest "http://$CONTROLLERIP:$CONTROLLERPORT/controller/network/")
     curlCode=$?
     if [[ $curlCode -eq 200 ]]; then
