@@ -1,16 +1,16 @@
 #!/bin/bash -i
-ZTCVERSION="ZeroTier Console v0.01.1"
+ZTCVERSION="ZeroTier Console v0.02"
 REMOTEONLY=0
 NONC=0
 
-if [ -n "$COLUMNS" ] && [[ COLUMNS -gt 48 ]] ; then
-        WTW=$((COLUMNS-8))
+if [ -n "$COLUMNS" ] && [[ $COLUMNS -gt 48 ]] ; then
+        WTW=$(($COLUMNS-8))
 else
         WTW=80
 fi
 
-if [ -n "$LINES" ] && [[ LINES -gt 38 ]]; then
-        WTH=$((LINES-8))
+if [ -n "$LINES" ] && [[ $LINES -gt 38 ]]; then
+        WTH=$(($LINES-8))
 elif [ $LINES -lt 30 ]; then
     WTH=$LINES
 else
@@ -20,6 +20,7 @@ fi
 TOKEN=""
 NODEINFO=""
 NODEADDRESS=""
+
 TITLE="$ZTCVERSION"
 MEMSTATUS=""
 CONFFILE="ztconsole.json"
@@ -29,6 +30,7 @@ TOKENFILE="authtoken.secret"
 CONTROLLERIP="localhost"
 CONTROLLERPORT="9993"
 CONTROLLERTOKEN=""
+CONTTOKENSTATUS=""
 CONTSTATUS=""
 
 if [[ ! $(command -v jq) ]]; then
@@ -79,6 +81,32 @@ function wtConfirm() {
     return $?
 }
 
+function wtMenu() {
+    menuText=$1
+    menuItems=$2
+    menuSelectButtonText="Select"
+    menuHeight=4
+    if [[ $3 ]]; then
+        menuHeight=$3
+    fi
+    if [[ $4 ]]; then
+        menuSelectButtonText=$4
+    fi
+    menuFtnSelect=$(whiptail --title "$TITLE" --menu "$menuText" $WTH $WTW $menuHeight --cancel-button Exit --ok-button $menuSelectButtonText "${menuItems[@]}" 3>&1 1>&2 2>&3)
+    menuReturn=$?
+    arrFtnReturn[0]=$menuFtnSelect
+    arrFtnReturn[1]=$menuFtnSelect
+    arrFtnReturn[2]="s"
+#    echo ${arrFtnReturn[0]}
+ #   echo ${arrFtnReturn[1]}
+    if [[ $menuReturn -ne 0 ]]; then
+        echo $arrFtnReturn
+    else
+        echo $arrFtnReturn
+    fi
+    return $menuReturn
+}
+
 function curlGetHTTPCode() {
     curlOut=$1
     code="${curlOut:${#curlOut}-3}"
@@ -89,6 +117,40 @@ function curlGetHTTPOut() {
     curlOut=$1
     out="${curlOut:0:${#curlOut}-3}"
     echo $out
+}
+
+function curlDeleteRequest() {
+    URL=$1
+    curlOutput=$(curl -s -X DELETE "$1" -H "X-ZT1-AUTH: ${TOKEN}")
+    httpCode=$(curlGetHTTPCode $curlOutput)
+    httpOut=$(curlGetHTTPOut $curlOutput)
+    arrReturn[0]=$httpCode
+    arrReturn[1]=$httpOut
+    arrReturn[2]=$curlOutput
+    echo $arrReturn
+}
+
+function curlPostRequest() {
+    URL=$1
+    POSTDATA=$2
+    curlOutput=$(curl -w "%{http_code}" -s -X POST "$URL" -H "X-ZT1-AUTH: ${TOKEN}" -d "$POSTDATA")
+    httpCode=$(curlGetHTTPCode $curlOutput)
+    httpOut=$(curlGetHTTPOut $curlOutput)
+    arrReturn[0]=$httpCode
+    arrReturn[1]=$httpOut
+    arrReturn[2]=$curlOutput
+    echo $arrReturn
+}
+
+function curlRequest() {
+    URL=$1
+    curlOutput=$(curl -w "%{http_code}" -s "$URL" -H "X-ZT1-AUTH: ${TOKEN}")
+    httpCode=$(curlGetHTTPCode $curlOutput)
+    httpOut=$(curlGetHTTPOut $curlOutput)
+    arrReturn[0]=$httpCode
+    arrReturn[1]=$httpOut
+    arrReturn[2]=$curlOutput
+    echo $arrReturn
 }
 
 function checkOnline() {
@@ -135,26 +197,29 @@ function getAuth() {
     fi
 }
 
-function menuMain() {
-
+function checkConnectivity() {
     if [[ ${#TOKEN} -eq 0 ]]; then
         CONTTOKENSTATUS="*** EMPTY TOKEN ***"
     elif [[ ! ${#TOKEN} -eq 24 ]]; then
         CONTTOKENSTATUS="*** INVALID TOKEN ***"
     else
-        echo yes | nc -w 1 $CONTROLLERIP $CONTROLLERPORT
-        if [[ $? -eq 0 ]]; then
-            CONTSTATUS="Controller Reachable"
+        if [[ $NONC -eq 0 ]]; then
+            echo yes | nc -w 1 $CONTROLLERIP $CONTROLLERPORT
+            if [[ $? -eq 0 ]]; then
+                CONTSTATUS="Controller Reachable"
+            else
+                CONTSTATUS="*** CONTROLLER UNREACHABLE ***"
+            fi
         else
-            CONTSTATUS="*** CONTROLLER UNREACHABLE ***"
+            CONTSTATUS="*** CONTROLLER UNKNOWN ***"
         fi
-
 
         if [[ $CONTSTATUS == "Controller Reachable" ]] || [[ $NONC -eq 1 ]]; then
             tokenTestConnect=$(curl -w "%{http_code}" -s "http://$CONTROLLERIP:$CONTROLLERPORT/status" -H "X-ZT1-AUTH: ${TOKEN}")
             http_code="${tokenTestConnect:${#tokenTestConnect}-3}"
             if [[ $http_code -eq "200" ]]; then
                 CONTTOKENSTATUS="Token OK"
+                CONTSTATUS="Controller Reachable"
                 jsonBody="${tokenTestConnect:0:${#tokenTestConnect}-3}"
                 NODEADDRESS=$(echo $jsonBody | jq -r .address)
                 TITLE="$ZTCVERSION : $NODEADDRESS"
@@ -167,6 +232,10 @@ function menuMain() {
             CONTTOKENSTATUS="*** CONTROLLER UNREACHABLE ***"
         fi
     fi
+}
+
+function menuMain() {
+    checkConnectivity
 
     if [[ $REMOTEONLY -eq 1 ]]; then
         menuItems=(Controller "Information and Configuration"
@@ -183,18 +252,24 @@ Settings "ZeroTier Console Settings"
 )
     fi
 
-
     menuText="ZeroTier Console
 Controller IP: $CONTROLLERIP
 Controller Port: $CONTROLLERPORT
 Controller Connection Status: $CONTSTATUS
 Token Status: $CONTTOKENSTATUS"
 
-    menuMainSelect=$(whiptail --title "$TITLE" --menu "$menuText" $WTH $WTW 4 --cancel-button Exit --ok-button Select "${menuItems[@]}" 3>&1 1>&2 2>&3)
-    if [[ $? -eq 1 ]]; then
+    #menuMainSelect=$(whiptail --title "$TITLE" --menu "$menuText" $WTH $WTW 4 --cancel-button Exit --ok-button Select "${menuItems[@]}" 3>&1 1>&2 2>&3)
+    #if [[ $? -eq 1 ]]; then
+    #    exit
+    #fi
+    menu1MainSelect=$(wtMenu "$menuText" "$menuItems")
+    menu1return=$?
+    #echo "zero $menu1MainSelect"
+    #echo "two $menu1return"
+    if [[ $menu1return -ne 0 ]]; then
         exit
     fi
-    case $menuMainSelect in
+    case $menu1MainSelect in
         Client)
             menuThisNode
         ;;
@@ -328,20 +403,24 @@ function menuControllerSettings() {
     menuController
 }
 
-function menuControllerSettings() {
-    menuItems=("Remote Management" "Remote Management Settings")
-    menuController
-}
-
 function infoToken() {
     wtMsgBox "$TOKEN"
     menuController
 }
 
 function infoController() {
-    jsonControllerInfo=$(curl -s "http://$CONTROLLERIP:$CONTROLLERPORT/controller" -H "X-ZT1-AUTH: ${TOKEN}")
-    wtInfoMsgBox "$jsonControllerInfo"
-    menuController
+    arrCurl=$(curlRequest "http://$CONTROLLERIP:$CONTROLLERPORT/controller")
+    if [[ ${arrCurl[0]} -eq 0 ]]; then
+        wtMsgBox "Error connecting to controller"
+        menuController
+    else
+        wtInfoMsgBox "${arrCurl[1]}"
+        menuController
+    fi
+    exit
+
+    #wtInfoMsgBox "$jsonControllerInfo"
+    #menuController
 }
 
 function menuThisNode() {
@@ -400,7 +479,7 @@ function cmenuJoinNetwork() {
 List "local Controller networks to join"
 )
     menuText="ZeroTier Client Console\nJoin a network"
-    menuClientSelect=$(whiptail --title "$TITLE" --menu "$menuText" $WTH $WTW 4 --cancel-button Back --ok-button Select "${menuItems[@]}" 3>&1 1>&2 2>&3)
+    menuClientSelect=$(whiptail --title "$TITLE" --menu "$menuText" $WTH $WTW 4 --cancel-button Back --ok-button Join "${menuItems[@]}" 3>&1 1>&2 2>&3)
     if [[ $? -gt 0 ]]; then
         menuThisNode
     fi
@@ -530,9 +609,10 @@ Surface Addresses:   -$NODESURFACEADDRESS
 function networkCreate() {
     whiptail --title "$TITLE" --yesno "Do you want to configure the network now?" $WTH $WTW
     if [[ $? -eq 1 ]]; then
-        jsonNewNetwork=$(curl -s -X POST "http://$CONTROLLERIP:$CONTROLLERPORT/controller/network/${NODEADDRESS}______" -H "X-ZT1-AUTH: ${TOKEN}" -d {})
-        if [[ ! $jsonNewNetwork == '{}' ]]; then 
-            NWID=$(echo $jsonNewNetwork | jq -r .id)
+        #jsonNewNetwork=$(curl -s -X POST "http://$CONTROLLERIP:$CONTROLLERPORT/controller/network/${NODEADDRESS}______" -H "X-ZT1-AUTH: ${TOKEN}" -d {})
+        curlOut=$(curlPostRequest "http://$CONTROLLERIP:$CONTROLLERPORT/controller/network/${NODEADDRESS}______" "{}")
+        if [[ ! ${curlOut[1]} == '{}' ]] && [[ ${curlOut[0]} -eq 200 ]]; then 
+            NWID=$(echo ${curlOut[1]} | jq -r .id)
             wtMsgBox "Network $NWID created"
             menuNetworks
             exit
@@ -565,8 +645,14 @@ function networkCreate() {
         jsonPayload=$(jq -n --arg netName "$txtNetName" --arg ipRangeStart "$txtIPStart" --arg ipRangeEnd "$txtIPEnd" --arg ipCIDR "$txtIPCIDR" '{"name":$netName,"ipAssignmentPools":[{"ipRangeStart":$ipRangeStart,"ipRangeEnd":$ipRangeEnd}], "routes":[{"target":$ipCIDR,"via":null}], "v4AssignMode":"zt","private":true}')
         wtConfirm "Are these settings correct? $jsonPayload"
         if [[ $? ]]; then
-            jsonNewNetwork=$(curl -s -X POST "http://$CONTROLLERIP:$CONTROLLERPORT/controller/network/${NODEADDRESS}______" -H "X-ZT1-AUTH: ${TOKEN}" -d "$jsonPayload")
-            wtMsgBox "$jsonNewNetwork"
+            curlOut=$(curlPostRequest "http://$CONTROLLERIP:$CONTROLLERPORT/controller/network/${NODEADDRESS}______" "$jsonPayload")
+            if [[ ${curlOut[0]} -eq 200 ]]; then
+                wtMsgBox "${curlOut[1]}"
+            else
+                wtMsgBox "Unable to create network"
+            fi
+            #jsonNewNetwork=$(curl -s -X POST "http://$CONTROLLERIP:$CONTROLLERPORT/controller/network/${NODEADDRESS}______" -H "X-ZT1-AUTH: ${TOKEN}" -d "$jsonPayload")
+            #wtMsgBox "$jsonNewNetwork"
             menuNetworks
             exit
         else
@@ -635,6 +721,7 @@ function menuNetworkMembers() {
         exit
     fi
 
+
     tmpMembers=$(mktemp)
     trap "rm -f $tmpMembers" EXIT
     pids=()
@@ -645,6 +732,7 @@ function menuNetworkMembers() {
     wait
 
     IFS=';' read -ra miMembers <<< $(sort $tmpMembers|tr '\n\t' ';')
+
 
     menuMembers=$(whiptail --title "$TITLE" --menu "Zerotier Network $NWID Member List" $WTH $WTW $[ WTH - 8 ] --cancel-button Back --ok-button Select "${miMembers[@]}" 3>&1 1>&2 2>&3)
     if [[ $? -eq 1 ]]; then
@@ -750,11 +838,20 @@ function memberMenu() {
 }
 
 function networkList() {
-    jsonNetworkList=$(curl -s "http://$CONTROLLERIP:$CONTROLLERPORT/controller/network/" -H "X-ZT1-AUTH: ${TOKEN}" )
-    Networks=($(echo $jsonNetworkList | jq -r '.[]'))
-    if [[ ${#Networks} -eq 0 ]]; then
-        wtMsgBox "No networks found. Please create a network"
+
+    #jsonNetworkList=$(curl -s "http://$CONTROLLERIP:$CONTROLLERPORT/controller/network/" -H "X-ZT1-AUTH: ${TOKEN}" )
+    jsonNetworkList=$(curlRequest "http://$CONTROLLERIP:$CONTROLLERPORT/controller/network/")
+    if [[ ${jsonNetworkList[0]} -eq 200 ]]; then
+        Networks=($(echo ${jsonNetworkList[1]} | jq -r '.[]'))
+        if [[ ${#Networks} -eq 0 ]]; then
+            wtMsgBox "No networks found. Please create a network"
+            menuNetworks
+            exit
+        fi
+    else
+        wtMsgBox "Unable to connect to controller."
         menuNetworks
+        exit
     fi
     miNetworks=()
     miNetworkItem=""
