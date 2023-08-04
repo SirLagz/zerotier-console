@@ -67,6 +67,10 @@ if [[ ! $(command -v iptables-save) ]]; then
     whiptail --title "$TITLE" --msgbox "iptables-save not found. Any iptables changes will not be persisted" $WTH $WTW
 fi
 
+if [[ ! $(command -v iptables) ]]; then
+    whiptail --title "$TITLE" --msgbox "iptables not found. Wizards will not function" $WTH $WTW
+fi
+
 function wtMsgBox() {
     whiptail --title "$TITLE" --msgbox "$1" $WTH $WTW
 }
@@ -96,16 +100,9 @@ function wtMenu() {
     if [[ $4 ]]; then
         menuSelectButtonText=$4
     fi
-    menuFtnSelect=$(whiptail --title "$TITLE" --menu "$menuText" $WTH $WTW $menuHeight --cancel-button Exit --ok-button $menuSelectButtonText "${menuItems[@]}" 3>&1 1>&2 2>&3)
+    menuFtnSelect=$(whiptail --title "$TITLE" --menu "$menuText" $WTH $WTW $menuHeight --cancel-button Back --ok-button $menuSelectButtonText "${menuItems[@]}" 3>&1 1>&2 2>&3)
     menuReturn=$?
-    arrFtnReturn[0]=$menuFtnSelect
-    arrFtnReturn[1]=$menuFtnSelect
-    arrFtnReturn[2]="s"
-    if [[ $menuReturn -ne 0 ]]; then
-        echo $arrFtnReturn
-    else
-        echo $arrFtnReturn
-    fi
+    echo $menuFtnSelect
     return $menuReturn
 }
 
@@ -232,10 +229,10 @@ function checkConnectivity() {
 
 function menuNode() {
     menuText="Local Node Settings"
-    menuItems=("Wizards" "Quick Setup Wizards")
+    menuItems=("Quick Setup" "Wizards")
     menuNodeSelect=$(wtMenu "$menuText" "$menuItems")
     case $menuNodeSelect in
-        "Wizards")
+        "Quick Setup")
             menuWizards
         ;;
         *)
@@ -247,17 +244,62 @@ function menuNode() {
 
 function menuWizards() {
     menuText="Quick Setups"
-    menuItems=("Router Mode" "Enable IP Forwarding")
+    menuItems=("Router Mode" "Enable IP Forwarding"
+    "Remote Access Mode" "Set Up This Server As A Remote Access VPN to access your local network remotely"
+)
     menuWizardSelect=$(wtMenu "$menuText" "$menuItems")
     case $menuWizardSelect in
         "Router Mode")
             setRouterMode
+        ;;
+        "Remote Access Mode")
+            setRemoteAccessMode
         ;;
         *)
             menuNode
         ;;
     esac
     exit
+}
+
+function setRemoteAccessMode() {
+    wtConfirm "This wizard will set up a network, join this node to the network, and set up this server as a NAT router.  Do you wish to proceed?"
+    if [[ $? -eq 0 ]]; then
+        sysctl -w net.ipv4.ip_forward=1 && sysctl -p
+        EXTNET=$(wtTextInput "Please enter subnet of local network. e.g. 10.1.1.0/24")
+        SUB1=$(echo $(( $RANDOM %254 + 1 )))
+        SUB2=$(echo $(( $RANDOM %254 + 1 )))
+        STARTIP="10.$SUB1.$SUB2.10"
+        ENDIP="10.$SUB1.$SUB2.50"
+        THISNODE="10.$SUB1.$SUB2.1"
+        SUBNET="10.$SUB1.$SUB2.0/24"
+        NIC=$(ip link | awk -F: '$0 !~ "lo|vir|wl|^[^0-9]"{print $2;getline}' | grep -v zt)
+
+        jsonPayload=$(jq -n --arg netName "Remote Access" --arg ipRangeStart "$STARTIP" --arg ipRangeEnd "$ENDIP" --arg ipCIDR "$SUBNET" --arg extnet "$EXTNET" --arg thisnode $THISNODE '{"name":$netName,"ipAssignmentPools":[{"ipRangeStart":$ipRangeStart,"ipRangeEnd":$ipRangeEnd}], "routes":[{"target":$ipCIDR,"via":null},{"target":$extnet,"via":$thisnode}], "v4AssignMode":"zt","private":true}')
+        curlOut=$(curlPostRequest "http://localhost:$CONTROLLERPORT/controller/network/${NODEADDRESS}______" "$jsonPayload")
+        curlCode=$?
+        if [[ $curlCode -ne 200 ]]; then
+            wtMsgBox "There was an issue creating the network"
+            menuWizards
+            exit
+        fi
+        NEWNET=$(echo "$curlOut" | jq -r .nwid)
+        zerotier-cli join $NEWNET
+        authOut=$(curlPostRequest "http://localhost:$CONTROLLERPORT/controller/network/${NEWNET}/member/${NODEADDRESS}" '{"authorized": true, "ipAssignments": ["'$THISNODE'"]}')
+        authCode=$?
+        if [[ $authCode -ne 200 ]]; then
+            wtMsgBox "There was an error authorising this node"
+            menuWizards
+            exit
+        fi
+        iptables -t nat -A POSTROUTING -s $SUBNET -o $NIC -j MASQUERADE
+        iptables-save > /etc/iptables/rules.v4
+        wtMsgBox "This server will now allow you to access your network remotely.\nJoin nodes to $NEWNET and authorise them to access your network.\nThis Network can be found under the network list as Remote Access"
+        menuWizards
+    else
+        menuWizards
+    fi
+    menuWizards
 }
 
 function setRouterMode() {
@@ -432,7 +474,14 @@ function menuControllerSettings() {
     )
     menuText="ZeroTier Controller Settings"
     menuSelect=$(wtMenu "$menuText" "$menuItems")
-    menuController
+    case menuSelect in
+        "Remote Management")
+            echo "Enable remote management"
+        ;;
+        *)
+            menuController
+        ;;
+    esac
 }
 
 function infoToken() {
@@ -451,9 +500,6 @@ function infoController() {
         menuController
     fi
     exit
-
-    #wtInfoMsgBox "$jsonControllerInfo"
-    #menuController
 }
 
 function menuThisNode() {
