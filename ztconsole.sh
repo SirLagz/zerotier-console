@@ -267,6 +267,11 @@ function setRemoteAccessMode() {
     if [[ $? -eq 0 ]]; then
         sysctl -w net.ipv4.ip_forward=1 && sysctl -p
         EXTNET=$(wtTextInput "Please enter subnet of local network. e.g. 10.1.1.0/24")
+        if [[ $EXTNET == "" ]]; then
+            wtMsgBox "No Subnet entered. Aborting"
+            menuWizards
+            exit
+        fi
         SUB1=$(echo $(( $RANDOM %254 + 1 )))
         SUB2=$(echo $(( $RANDOM %254 + 1 )))
         STARTIP="10.$SUB1.$SUB2.10"
