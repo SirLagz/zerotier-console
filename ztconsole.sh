@@ -243,13 +243,13 @@ function menuNode() {
 }
 
 function menuWizards() {
-    menuText="Quick Setups"
-    menuItems=("Router Mode" "Enable IP Forwarding"
-    "Remote Access Mode" "Set Up This Server As A Remote Access VPN to access your local network remotely"
+    menuText="Quick Setup Wizards"
+    menuItems=("Enable Router Mode" "Enable IP Forwarding on this node"
+    "Remote Access Mode" "Sets this node up as a Remote Access VPN - Allows access your local network remotely"
 )
     menuWizardSelect=$(wtMenu "$menuText" "$menuItems")
     case $menuWizardSelect in
-        "Router Mode")
+        "Enable Router Mode")
             setRouterMode
         ;;
         "Remote Access Mode")
