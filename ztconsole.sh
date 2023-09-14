@@ -495,7 +495,7 @@ function infoToken() {
 }
 
 function infoController() {
-    arrCurl=$(curlRequest "http://$CONTROLLERIP:$CONTROLLERPORT/controller")
+    arrCurl=$(curlRequest "http://$CONTROLLERIP:$CONTROLLERPORT/controller/")
     curlCode=$?
     if [[ $curlCode -eq 0 ]]; then
         wtMsgBox "Error connecting to controller"
@@ -763,7 +763,7 @@ function networkDelete() {
 
 function networkInfo() {
     NWID=$1
-    jsonNetworkInfo=$(curl -s "http://$CONTROLLERIP:$CONTROLLERPORT/controller/network/${NWID}/" -H "X-ZT1-AUTH: ${TOKEN}" )
+    jsonNetworkInfo=$(curlRequest "http://$CONTROLLERIP:$CONTROLLERPORT/controller/network/${NWID}")
     formatted=$(echo $jsonNetworkInfo | jq)
     wtInfoMsgBox "$formatted"
     menuNetwork $NWID
