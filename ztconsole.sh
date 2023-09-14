@@ -197,7 +197,7 @@ function checkConnectivity() {
         CONTTOKENSTATUS="*** INVALID TOKEN ***"
     else
         if [[ $NONC -eq 0 ]]; then
-            echo yes | nc -w 1 $CONTROLLERIP $CONTROLLERPORT
+            echo yes | nc -w 1 $CONTROLLERIP $CONTROLLERPORT > /dev/null
             if [[ $? -eq 0 ]]; then
                 CONTSTATUS="Controller Reachable"
             else
@@ -208,12 +208,12 @@ function checkConnectivity() {
         fi
 
         if [[ $CONTSTATUS == "Controller Reachable" ]] || [[ $NONC -eq 1 ]]; then
-            tokenTestConnect=$(curl -w "%{http_code}" -s "http://$CONTROLLERIP:$CONTROLLERPORT/status" -H "X-ZT1-AUTH: ${TOKEN}")
-            http_code="${tokenTestConnect:${#tokenTestConnect}-3}"
+            tokenTestConnect=$(curlRequest "http://$CONTROLLERIP:$CONTROLLERPORT/status")
+            http_code=$?
             if [[ $http_code -eq "200" ]]; then
                 CONTTOKENSTATUS="Token OK"
                 CONTSTATUS="Controller Reachable"
-                jsonBody="${tokenTestConnect:0:${#tokenTestConnect}-3}"
+                jsonBody=$tokenTestConnect
                 NODEADDRESS=$(echo $jsonBody | jq -r .address)
                 TITLE="$ZTCVERSION : $NODEADDRESS"
             elif [[ $http_code -eq "000" ]]; then
@@ -265,7 +265,7 @@ function menuWizards() {
 function setRemoteAccessMode() {
     wtConfirm "This wizard will set up a network, join this node to the network, and set up this server as a NAT router.  Do you wish to proceed?"
     if [[ $? -eq 0 ]]; then
-        sysctl -w net.ipv4.ip_forward=1 && sysctl -p
+        sysctl -w net.ipv4.ip_forward=1 >> /etc/sysctl.conf
         EXTNET=$(wtTextInput "Please enter subnet of local network. e.g. 10.1.1.0/24")
         if [[ $EXTNET == "" ]]; then
             wtMsgBox "No Subnet entered. Aborting"
@@ -308,8 +308,8 @@ function setRemoteAccessMode() {
 }
 
 function setRouterMode() {
-    sysctl -w net.ipv4.ip_forward=1 && sysctl -p
-    wtMsgBox "Ran the commands sysctl -w net.ipv4.ip_forward=1 &&  sysctl -p. IP Forwarding is now enabled."
+    sysctl -w net.ipv4.ip_forward=1 >> /etc/sysctl.conf
+    wtMsgBox "Ran the command sysctl -w net.ipv4.ip_forward=1 >> /etc/sysctl.conf. IP Forwarding is now enabled."
     menuWizards
 }
 
@@ -796,8 +796,8 @@ function parseNetworkMember() {
 
 function menuNetworkMembers() {
     NWID=$1
-    jsonNetworkMembers=$(curl -s "http://$CONTROLLERIP:$CONTROLLERPORT/controller/network/${NWID}/member" -H "X-ZT1-AUTH: ${TOKEN}")
-    arrMembers=($(echo $jsonNetworkMembers | jq -r 'keys[]'))
+    jsonNetworkMembers=$(curlRequest "http://$CONTROLLERIP:$CONTROLLERPORT/controller/network/${NWID}/member")
+    arrMembers=($(echo $jsonNetworkMembers | jq -r '.[] | keys[]'))
     if [[ ${#arrMembers} -eq 0 ]]; then
         wtMsgBox "This network has no members, please join some devices to this network"
         menuNetwork $NWID
@@ -920,7 +920,7 @@ function memberMenu() {
 }
 
 function networkList() {
-    jsonNetworkList=$(curlRequest "http://$CONTROLLERIP:$CONTROLLERPORT/controller/network/")
+    jsonNetworkList=$(curlRequest "http://$CONTROLLERIP:$CONTROLLERPORT/controller/network")
     curlCode=$?
     if [[ $curlCode -eq 200 ]]; then
         Networks=($(echo $jsonNetworkList | jq -r '.[]'))
@@ -1185,6 +1185,5 @@ function validateIP() {
 
     return $?
 }
-
 getAuth
 menuMain
