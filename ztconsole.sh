@@ -178,7 +178,7 @@ function getAuth() {
     if [[ $CONTROLLERTOKEN == "" ]]; then
         if [[ -f "$TOKENPATH$TOKENFILE" ]]; then
             TOKEN=$(cat $TOKENPATH$TOKENFILE)
-            NODEINFO=$(curl -s "http://$CONTROLLERIP:$CONTROLLERPORT/status" -H "X-ZT1-AUTH: ${TOKEN}")
+            NODEINFO=$(curlRequest "http://$CONTROLLERIP:$CONTROLLERPORT/status")
             NODEADDRESS=$(echo $NODEINFO | jq -r .address)
             TITLE="$ZTCVERSION : $NODEADDRESS"
         else
@@ -427,6 +427,8 @@ function menuZTCSettings() {
 )
     menuText="Change settings for ZeroTier Console"
 
+
+## TODO update to menu function
     menuZTCSettingsSelect=$(whiptail --title "$TITLE" --menu "$menuText" $WTH $WTW 4 --cancel-button Back --ok-button Select "${menuItems[@]}"  3>&1 1>&2 2>&3)
     if [[ $? -eq 1 ]]; then
         menuMain
@@ -452,6 +454,7 @@ Auth "Show Auth Token"
 Settings "Change controller settings"
 Networks "View and configure networks")
     menuText="ZeroTier Controller Console"
+## TODO update to menu function
     menuControllerSelect=$(whiptail --title "$TITLE" --menu "$menuText" $WTH $WTW 4 --cancel-button Back --ok-button Select "${menuItems[@]}"  3>&1 1>&2 2>&3)
     if [[ $? -eq 1 ]]; then
         menuMain
@@ -513,7 +516,7 @@ Join "this node to a network"
 Change "settings for a network"
 Leave "a network this node is connected to"
 )
-
+## TODO update to menu function
     menuClientSelect=$(whiptail --title "$TITLE" --menu "ZeroTier Client Console" $WTH $WTW 4 --cancel-button Back --ok-button Select "${menuItems[@]}" 3>&1 1>&2 2>&3)
     if [[ $? -eq 1 ]]; then
         menuMain
@@ -544,6 +547,7 @@ function cmenuLeaveNetwork() {
         menuItems+=("  $i")
     done
     menuText="ZeroTier Client Console\nLeave a network"
+    ## TODO update to menu function
     menuNetworkSelect=$(whiptail --title "$TITLE" --menu "$menuText" $WTH $WTW 4 --cancel-button Back --ok-button Select "${menuItems[@]}"  3>&1 1>&2 2>&3)
     if [[ $? -gt 0 ]]; then
         menuThisNode
@@ -563,6 +567,7 @@ function cmenuJoinNetwork() {
 List "local Controller networks to join"
 )
     menuText="ZeroTier Client Console\nJoin a network"
+## TODO update to menu function
     menuClientSelect=$(whiptail --title "$TITLE" --menu "$menuText" $WTH $WTW 4 --cancel-button Back --ok-button Join "${menuItems[@]}" 3>&1 1>&2 2>&3)
     if [[ $? -gt 0 ]]; then
         menuThisNode
@@ -577,6 +582,7 @@ List "local Controller networks to join"
     esac
 }
 function clientJoinID() {
+## TODO update to text input function
     txtNetworkID=$(whiptail --title "$TITLE" --inputbox "Enter in Network ID" $WTH $WTW 3>&1 1>&2 2>&3)
     if [[ $? -gt 0 ]]; then
         cmenuJoinNetwork
@@ -590,6 +596,7 @@ function clientJoinID() {
 
 
 function clientJoinLAN {
+## TODO update to curl request function
     jsonNetworkList=$(curl -s "http://$CONTROLLERIP:$CONTROLLERPORT/controller/network/" -H "X-ZT1-AUTH: ${TOKEN}" )
     Networks=($(echo $jsonNetworkList | jq -r '.[]'))
     if [[ ${#Networks} -eq 0 ]]; then
@@ -599,9 +606,11 @@ function clientJoinLAN {
     miNetworks=()
     miNetworkItem=""
     for i in ${Networks[@]}; do
+## TODO update to curl request function
         boolAlreadyJoined=$(curl -s "http://$CONTROLLERIP:$CONTROLLERPORT/controller/network/{$i}/member" -H "X-ZT1-AUTH: ${TOKEN}" | jq '. | has("'"$NODEADDRESS"'")')
         if [[ $boolAlreadyJoined == "false" ]]; then
             miNetworks+=("$i")
+## TODO update to curl request function
             jsonNetworkName=$(curl -s "http://$CONTROLLERIP:$CONTROLLERPORT/controller/network/{$i}" -H "X-ZT1-AUTH: ${TOKEN}" | jq -r .name)
             if [[ $jsonNetworkName ]]; then
                 miNetworkName="$jsonNetworkName"
@@ -611,6 +620,7 @@ function clientJoinLAN {
             miNetworks+=("  ($miNetworkName) ")
         fi
     done
+## TODO update to menu function
     menuNetworkList=$(whiptail --title "$TITLE" --menu "ZeroTier Network List\nChoose a Network Below:" $WTH $WTW 8 --cancel-button Back --ok-button Select "${miNetworks[@]}" 3>&1 1>&2 2>&3)
     if [[ $? -eq 1 ]]; then
         cmenuJoinNetwork
@@ -630,6 +640,7 @@ function clientJoinLAN {
 
 function clientJoinNetwork {
     networkID=$1
+## TODO update to wtmsgbox function
     whiptail --msgbox "joining $networkID" $WTH $WTW
 #    jsonJoinNetwork=$(curl -s -X POST "http://$CONTROLLERIP:$CONTROLLERPORT/network/{networkID}" -H "X-ZT1-AUTH: ${TOKEN}")
     jsonJoinNetwork=$(zerotier-cli join $networkID) 
@@ -685,12 +696,13 @@ Tertiary Port:   -$NODETERTIARYPORT
 Surface Addresses:   -$NODESURFACEADDRESS
 "
 
-
+## TODO update to msgbox function
     whiptail --title "$TITLE" --msgbox "$(column -L -t -R 1 -s \- <<< $DATA)" 40 80
     menuThisNode
 }
 
 function networkCreate() {
+## TODO update to wtconfirm function
     whiptail --title "$TITLE" --yesno "Do you want to configure the network now?" $WTH $WTW
     if [[ $? -eq 1 ]]; then
         curlOut=$(curlPostRequest "http://$CONTROLLERIP:$CONTROLLERPORT/controller/network/${NODEADDRESS}______" "{}")
@@ -752,6 +764,7 @@ function networkCreate() {
 
 function networkDelete() {
     NWID=$1
+## TODO update to wtconfirm function and curl delete function
     whiptail --yesno "Are you sure you want to delete network $NWID?" $WTH $WTW
     if [[ $? -eq 0 ]]; then
         jsonNetworkDelete=$(curl -s -X DELETE "http://$CONTROLLERIP:$CONTROLLERPORT/controller/network/${NWID}" -H "X-ZT1-AUTH: ${TOKEN}")
@@ -765,6 +778,7 @@ function networkInfo() {
     NWID=$1
     jsonNetworkInfo=$(curlRequest "http://$CONTROLLERIP:$CONTROLLERPORT/controller/network/${NWID}")
     formatted=$(echo $jsonNetworkInfo | jq)
+## TODO format info better
     wtInfoMsgBox "$formatted"
     menuNetwork $NWID
 }
@@ -772,6 +786,7 @@ function networkInfo() {
 function parseNetworkMember() {
     networkID=$1
     memberID=$2
+## TODO update to use curlrequest function
     jsonNetworkMemberStatus=$(curl -s "http://$CONTROLLERIP:$CONTROLLERPORT/controller/network/${networkID}/member/${memberID}" -H "X-ZT1-AUTH: ${TOKEN}")
     memAuthStatus=$(echo $jsonNetworkMemberStatus | jq .authorized)
     case $memAuthStatus in
@@ -816,7 +831,7 @@ function menuNetworkMembers() {
 
     IFS=';' read -ra miMembers <<< $(sort $tmpMembers|tr '\n\t' ';')
 
-
+## TODO update to wtmenu function
     menuMembers=$(whiptail --title "$TITLE" --menu "Zerotier Network $NWID Member List" $WTH $WTW $[ WTH - 8 ] --cancel-button Back --ok-button Select "${miMembers[@]}" 3>&1 1>&2 2>&3)
     if [[ $? -eq 1 ]]; then
         menuNetwork $NWID
@@ -827,6 +842,7 @@ function menuNetworkMembers() {
 function memberInfo() {
     NWID=$1
     MEMID=$2
+## TODO update to curlrequest function
     jsonMemberInfo=$(curl -s "http://$CONTROLLERIP:$CONTROLLERPORT/controller/network/${NWID}/member/${MEMID}" -H "X-ZT1-AUTH: ${TOKEN}" )
     formatted=$(echo $jsonMemberInfo | jq)
     wtInfoMsgBox "$formatted"
@@ -836,6 +852,7 @@ function memberInfo() {
 function memberMenuConfig() {
     NWID=$1
     MEMID=$2
+## TODO update to wtinput function and curl posst function
     txtNewMemberIP=$(whiptail --title "$TITLE" --inputbox "New IP Address" $WTH $WTW 3>&1 1>&2 2>&3)
     if [[ $? == 1 ]]; then
         memberMenu $NWID $MEMID
@@ -847,6 +864,7 @@ function memberMenuConfig() {
 function memberAuth() {
     NWID=$1
     MEMID=$2
+## TODO update to curl post function
     jsonMemberAuth=$(curl -s -X POST "http://$CONTROLLERIP:$CONTROLLERPORT/controller/network/${NWID}/member/${MEMID}" -H "X-ZT1-AUTH: ${TOKEN}" -d '{"authorized": true}')
     MEMSTATUS="Authorised"
     memberMenu $NWID $MEMID
@@ -855,6 +873,7 @@ function memberAuth() {
 function memberDeauth() {
     NWID=$1
     MEMID=$2
+## TODO update to curl post function
     jsonMemberDeauth=$(curl -s -X POST "http://$CONTROLLERIP:$CONTROLLERPORT/controller/network/${NWID}/member/${MEMID}" -H "X-ZT1-AUTH: ${TOKEN}" -d '{"authorized": false}')
     MEMSTATUS="Deauthorised"
     memberMenu $NWID $MEMID
@@ -864,6 +883,7 @@ function memberDelete() {
     NWID=$1
     MID=$2
 
+## TODO update to curl request function
     MEMSTATUS=$(curl -s "http://$CONTROLLERIP:$CONTROLLERPORT/controller/network/${NWID}/member/${MID}" -H "X-ZT1-AUTH: ${TOKEN}" | jq -r .authorized)
     if [[ $MEMSTATUS == "true" ]]; then
         wtMsgBox "Member still authorised. Please de-authorise member before deleting"
@@ -873,6 +893,7 @@ function memberDelete() {
 
     wtConfirm "Are you sure you want to delete member $MID?"
     if [[ $? ]]; then
+## TODO update to curl delete function
         jsonDeleteMember=$(curl -sw "%{http_code}" -X DELETE "http://$CONTROLLERIP:$CONTROLLERPORT/controller/network/${NWID}/member/${MID}" -H "X-ZT1-AUTH: ${TOKEN}")
         resp=$(curlGetHTTPCode $jsonDeleteMember)
         if [[ $resp == "200" ]]; then
@@ -890,6 +911,7 @@ function memberDelete() {
 function memberMenu() {
     NWID=$1
     MID=$2
+## TODO update to curl request and wtmenu functions
     MEMSTATUS=$(curl -s "http://$CONTROLLERIP:$CONTROLLERPORT/controller/network/${NWID}/member/${MID}" -H "X-ZT1-AUTH: ${TOKEN}" | jq .authorized)
     menuItems=("Member Info" "" "Set Member IP" "" "Auth Member" "" "Deauth Member" "" "Delete Member" "")
     menuText=("Zerotier Network $NWID \nMember Menu - $MID \nMember Authorised - $MEMSTATUS")
@@ -938,6 +960,7 @@ function networkList() {
     miNetworkItem=""
     for i in ${Networks[@]}; do
         miNetworks+=("$i")
+## TODO update to curl request function and wtmenu function
         jsonNetworkName=$(curl -s "http://$CONTROLLERIP:$CONTROLLERPORT/controller/network/{$i}" -H "X-ZT1-AUTH: ${TOKEN}" | jq -r .name)
         if [[ $jsonNetworkName ]]; then
             miNetworkName="$jsonNetworkName"
@@ -963,6 +986,7 @@ function networkList() {
 
 function networkConfigRoutesShow() {
     NWID=$1
+## TODO update to curlrequest function
     jsonNetworkInfo=$(curl -s "http://$CONTROLLERIP:$CONTROLLERPORT/controller/network/${NWID}/" -H "X-ZT1-AUTH: ${TOKEN}" )
     arrCurrentRoutes=$(echo $jsonNetworkInfo | jq -r .routes[])
     if [[ ${#arrCurrentRoutes} -eq 0 ]]; then
@@ -975,6 +999,7 @@ function networkConfigRoutesShow() {
 
 function networkConfigRouteAdd() {
     NWID=$1
+## TODO update to use wtinput and curlrequest functions
     txtNewRoute=$(whiptail --title "$TITLE" --inputbox "Enter Destination Network and CIDR mask, or leave blank to cancel" $WTH $WTW 3>&1 1>&2 2>&3)
     if [[ $txtNewRoute ]]; then
         txtNewRouteGW=$(whiptail --title "$TITLE" --inputbox "Network: $txtNewRoute\nEnter Gateway for Network" $WTH $WTW 3>&1 1>&2 2>&3)
@@ -1003,6 +1028,7 @@ function networkConfigRouteAdd() {
 
 function networkConfigRouteDelete() {
     NWID=$1
+## TODO update to use curlrequest
     jsonData=($(curl -s "http://$CONTROLLERIP:$CONTROLLERPORT/controller/network/${NWID}/" -H "X-ZT1-AUTH: ${TOKEN}" | jq -c .routes[]))
     miRoutes=()
     if [[ ${#jsonData} -lt 3 ]]; then
@@ -1012,6 +1038,7 @@ function networkConfigRouteDelete() {
     for i in "${jsonData[@]}"; do
         miRoutes+=("$i" "  (-) ")
     done
+## TODO update to use wtmenu function and curlrequest
     menuRouteDelete=$(whiptail --title "$TITLE" --menu "Zerotier Network Configuration $idNetwork\nDelete Route" $WTH $WTW 4 --cancel-button Back --ok-button Delete "${miRoutes[@]}"  3>&1 1>&2 2>&3)
     if [[ $? -gt 0 ]]; then
         networkConfigRoutes $NWID
@@ -1051,6 +1078,7 @@ function networkConfigRoutes() {
 
 function networkConfigDescription() {
     NWID=$1
+## TODO update to use curlrequest x3 and curlinput
     jsonData=$(curl -s "http://$CONTROLLERIP:$CONTROLLERPORT/controller/network/${NWID}/" -H "X-ZT1-AUTH: ${TOKEN}" | jq .name)
     if [[ jsonData == "" ]]; then
        txtDesc="No Description Set"
@@ -1085,6 +1113,7 @@ function networkConfigIPRange() {
         networkConfig $NWID
     fi
     if [[ $txtIPStart ]] && [[ $txtIPEnd ]] && [[ $txtIPCIDR ]]; then
+## TODO update to usse curlrequests
         jsonPayload=$(jq -n --arg IPStart "$txtIPStart" --arg IPEnd "$txtIPEnd" --arg CIDR "$txtIPCIDR" '{ipAssignmentPools:[{ipRangeStart:$IPStart,ipRangeEnd:$IPEnd}],routes:[{target:$CIDR,via:null}],v4AssignMode:"zt"}')
         jsonNewIPRange=$(curl -s -X POST "http://$CONTROLLERIP:$CONTROLLERPORT/controller/network/${NWID}/" -d "$jsonPayload" -H "X-ZT1-AUTH: ${TOKEN}")
         jsonOutput=$(echo "$jsonNewIPRange" | jq '("IP Address Range",.ipAssignmentPools[],"routes", .routes[])')
@@ -1098,6 +1127,7 @@ function networkConfigIPRange() {
 
 function networkConfig() {
     idNetwork=$1
+## TODO update to use curlrequest function and wtmenu function
     jsonNetworkInfo=$(curl -s "http://$CONTROLLERIP:$CONTROLLERPORT/controller/network/${idNetwork}/" -H "X-ZT1-AUTH: ${TOKEN}" )
     txtIPStart=$(echo $jsonNetworkInfo | jq -r .ipAssignmentPools[0].ipRangeStart)
     txtIPEnd=$(echo $jsonNetworkInfo | jq -r .ipAssignmentPools[0].ipRangeEnd)
@@ -1130,6 +1160,7 @@ function networkConfig() {
 
 function menuNetwork() {
     idNetwork=$1
+## TODO update to use wtmenu function
     menuItems=("Network Info" "" "Configure Network" "" "List Network Members" "" "Delete Network" "")
     menuText="ZeroTier Network $idNetwork"
     menuSelect=$(whiptail --title "$TITLE" --menu "$menuText" $WTH $WTW 4 --cancel-button Back --ok-button Select "${menuItems[@]}" 3>&1 1>&2 2>&3)
@@ -1155,6 +1186,7 @@ function menuNetwork() {
 }
 
 function menuNetworks() {
+## TODO update to wtmenu
     menuItems=("List Networks" "" "Create Network" "")
     menuSelect=$(whiptail --title "$TITLE" --menu "ZeroTier Networking Menu" $WTH $WTW 4 --cancel-button Back --ok-button Select "${menuItems[@]}" 3>&1 1>&2 2>&3)
     RET=$?
