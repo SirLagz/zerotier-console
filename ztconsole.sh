@@ -139,9 +139,12 @@ function curlPostRequest() {
 
 function curlRequest() {
     URL="$1"
+#    echo "Request URL $1" >> /tmp/zt-logfile
     curlOutput=$(curl -w "%{http_code}" -s "$URL" -H "X-ZT1-AUTH: ${TOKEN}")
+#    echo 'Curl Command' curl -w "%{http_code}" -s "$URL" -H "X-ZT1-AUTH: ${TOKEN}" >> /tmp/zt-logfile
     httpCode=$(curlGetHTTPCode "$curlOutput")
     httpOut=$(curlGetHTTPOut "$curlOutput")
+#    echo $httpOut >> /tmp/zt-logfile
     echo $httpOut
     return "$httpCode"
 }
@@ -987,7 +990,7 @@ function networkList() {
 function networkConfigRoutesShow() {
     NWID=$1
 ## TODO update to curlrequest function
-    jsonNetworkInfo=$(curl -s "http://$CONTROLLERIP:$CONTROLLERPORT/controller/network/${NWID}/" -H "X-ZT1-AUTH: ${TOKEN}" )
+    jsonNetworkInfo=$(curl -s "http://$CONTROLLERIP:$CONTROLLERPORT/controller/network/${NWID}" -H "X-ZT1-AUTH: ${TOKEN}" )
     arrCurrentRoutes=$(echo $jsonNetworkInfo | jq -r .routes[])
     if [[ ${#arrCurrentRoutes} -eq 0 ]]; then
         wtMsgBox "No routes yet. Please create a route for this network"
@@ -1006,10 +1009,10 @@ function networkConfigRouteAdd() {
         if [[ $txtNewRouteGW ]]; then
             confirm=$(whiptail --title "$TITLE" --yesno "Network: $txtNewRoute\nGateway: $txtNewRouteGW\nAre These Details Correct?" $WTH $WTW 3>&1 1>&2 2>&3)
             if [[ $? -eq 0 ]]; then
-                jsonCurrentRoute=$(curl -s "http://$CONTROLLERIP:$CONTROLLERPORT/controller/network/${NWID}/" -H "X-ZT1-AUTH: ${TOKEN}" | jq -c .routes)
+                jsonCurrentRoute=$(curlRequest "http://$CONTROLLERIP:$CONTROLLERPORT/controller/network/${NWID}" | jq -c .routes)
                 jsonNewRoute=$(jq -c -n --arg net "$txtNewRoute" --arg gw "$txtNewRouteGW" '[{target:$net,via:$gw}]')
                 jsonPayload=$(echo $jsonCurrentRoute $jsonNewRoute | jq -s add -c | jq '{"routes": .}')
-                jsonAddNewRoute=$(curl -s -d "$jsonPayload" -X POST "http://$CONTROLLERIP:$CONTROLLERPORT/controller/network/${NWID}/" -H "X-ZT1-AUTH: ${TOKEN}" | jq .routes)
+                jsonAddNewRoute=$(curl -s -d "$jsonPayload" -X POST "http://$CONTROLLERIP:$CONTROLLERPORT/controller/network/${NWID}" -H "X-ZT1-AUTH: ${TOKEN}" | jq .routes)
                 wtInfoMsgBox "Added New Route\nCurrent Routes: $jsonAddNewRoute"
                 networkConfigRoutes $NWID
             else
