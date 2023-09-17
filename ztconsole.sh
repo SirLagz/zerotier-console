@@ -812,7 +812,7 @@ function parseNetworkMember() {
 function menuNetworkMembers() {
     NWID=$1
     jsonNetworkMembers=$(curlRequest "http://$CONTROLLERIP:$CONTROLLERPORT/controller/network/${NWID}/member")
-    arrMembers=($(echo $jsonNetworkMembers | jq -r '.[] | keys[]'))
+    arrMembers=($(echo $jsonNetworkMembers | jq -r 'keys[]'))
     if [[ ${#arrMembers} -eq 0 ]]; then
         wtMsgBox "This network has no members, please join some devices to this network"
         menuNetwork $NWID
